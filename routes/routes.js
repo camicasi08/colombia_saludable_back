@@ -8,4 +8,5 @@ exports.routes = function(app) {
     app.get('/times', controller.times);
     app.get('/prices', controller.prices);
     app.get('/recipes', controller.recipes);
+    app.get('/medicines', controller.getMedicamentosRecetados);
 }

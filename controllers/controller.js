@@ -323,3 +323,136 @@ exports.getYears = function(req, res){
             return res.status(500).json({message: err});
         })
 }
+
+exports.getMedicamentosRecetados = function(req, res){
+    
+    if(req.query.limit !=null){
+        limit = req.query.limit; 
+    }else{
+        limit = 500;
+    }
+
+    var query  = "select tf.codigo_formula, mr.key_medicamento, med.nombre  from medicamentos_recetados mr join trans_formula tf"
+	query+=" on tf.key_formula = mr.key_formula";
+	query+= " join dim_medicamento med on mr.key_medicamento = med.key_medicamento limit " + limit;
+    const client = new pg.Client(config);
+    client.connect();
+
+    client.query(query)
+        .then(function(result){
+            client.end();
+            var formulas={};
+            result.rows.map(function(item){
+                try {
+                    if(formulas[item.codigo_formula+""]!=undefined){
+                        formulas[item.codigo_formula+""].push(
+                            {id:item.key_medicamento, nombre:item.nombre}
+                        )
+                    }else{
+                        formulas[item.codigo_formula+""] = []
+                        formulas[item.codigo_formula+""].push(
+                            {id:item.key_medicamento, nombre:item.nombre}
+                        )
+                    }
+                } catch (error) {
+                    console.log(error);
+                }
+               
+            })
+            //console.log(formulas);
+            //return res.status(200).json(result.rows);
+           
+            var relations ={};
+            for(var key in formulas){
+               var form = formulas[key]
+                if(form.length>1){
+                    //console.log(form);
+                    var source = form[0]
+                    //console.log(source);
+                    if(relations[source.id+"-"+source.nombre] !=undefined){
+                        
+                       for (let index = 1; index < form.length; index++) {
+                           const element = form[index];
+                           const add = element.id+"-"+element.nombre;
+                           if(!relations[source.id+"-"+source.nombre].includes(add)){
+                                relations[source.id+"-"+source.nombre].push(add);
+                           }
+                           
+                       }
+                    }else{
+                        relations[source.id+"-"+source.nombre] = [];
+                        for (let index = 1; index < form.length; index++) {
+                            const element = form[index];
+                            const add = element.id+"-"+element.nombre;
+                         
+                            if(!relations[source.id+"-"+source.nombre].includes(add)){
+                                relations[source.id+"-"+source.nombre].push(add);
+                            }
+                           
+                          
+                            
+                        }
+                   }
+                    
+                }
+            }
+
+            var nodes =[];
+            var nodesTmp=[];
+            var edges =[];
+            for(var key in relations){
+                var relation = relations[key];
+                var idNode = key.split("-")[0];
+                var name = key.split("-")[1];
+                if(!nodesTmp.includes(key)){
+                    nodesTmp.push(key);
+                    nodes.push({
+                        data:{
+                            id:idNode,
+                            name: name,
+                            faveColor: "#3189ed",
+                            faveShape: 'rectangle'
+                        }
+                    })
+                }
+                
+                relation.map(function(edge){
+                    var targetId = edge.split("-")[0];
+                    var targetName = edge.split("-")[1];
+                    if(!nodesTmp.includes(edge)){
+                        nodesTmp.push(edge);
+                        nodes.push({
+                            data:{
+                                id:targetId,
+                                name: targetName,
+                                faveColor: "#3189ed",
+                                faveShape: 'rectangle'
+                            }
+                        })
+                        
+                    }
+                   
+                    edges.push({
+                       data:{
+                            source: idNode,
+                            target: targetId,
+                            faveColor: "#394b60"
+                       } 
+                    })
+                })
+            }
+            var setNodes = Array.from(new Set(nodes));
+           //console.log(setNodes);
+           var graph ={
+               nodes : setNodes,
+               edges : edges
+           }
+            return res.status(200).json(graph);
+        })
+        .catch(function(err){
+            console.log(err);
+            client.end();
+
+            return res.status(500).json({message: err});
+        })
+}
